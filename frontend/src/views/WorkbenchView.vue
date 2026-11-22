@@ -70,6 +70,12 @@
       </tbody>
     </table>
 
+    <section v-if="meta.key === 'reco_engine' && emptyReasons.length" class="reco-empty-panel" data-testid="reco-empty-reasons">
+      <h3>推荐空态说明</h3>
+      <p class="reco-empty-hint">以下目标本轮未作为候选下发，原因来自路径推理的可达性结论：</p>
+      <p v-for="reason in emptyReasons" :key="reason" class="reco-empty-item">{{ reason }}</p>
+    </section>
+
     <div v-if="showCreate" class="modal-backdrop" data-testid="create-modal">
       <form class="modal" @submit.prevent="submitCreate">
         <h3>登记{{ meta.entity }}</h3>
@@ -103,6 +109,7 @@ import {
   moduleMeta,
   runAction as applyAction,
 } from '@/api/backend-service'
+import { fetchDelivery } from '@/api/reasoning'
 import type { EntryRow } from '@/data/types'
 
 const props = defineProps<{ moduleKey: string }>()
@@ -110,6 +117,7 @@ const meta = moduleMeta(props.moduleKey)
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
+const emptyReasons = ref<string[]>([])
 const filters = ref<Record<string, string>>({})
 const filterFields = meta.fields.slice(0, 3)
 const showCreate = ref(false)
@@ -171,6 +179,7 @@ async function runAction(action: string, row: EntryRow) {
     const result = await applyAction(meta.key, Number(row.id), action)
     if (!result.ok) throw new Error(result.message)
     await reload()
+    await loadEmptyReasons()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '操作失败'
   }
@@ -187,5 +196,18 @@ async function reload() {
   }
 }
 
-onMounted(reload)
+async function loadEmptyReasons() {
+  if (meta.key !== 'reco_engine') return
+  try {
+    const delivery = await fetchDelivery()
+    emptyReasons.value = delivery.空态说明 ?? []
+  } catch {
+    emptyReasons.value = []
+  }
+}
+
+onMounted(() => {
+  void reload()
+  void loadEmptyReasons()
+})
 </script>
